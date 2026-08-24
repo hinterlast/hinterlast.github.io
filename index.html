@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Баллистическое движение</title>
+<style>
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    padding:12px;
+    background:#f5f7fb;
+    font-family:Arial,sans-serif;
+    color:#243044;
+  }
+  .app{max-width:1000px;margin:0 auto}
+  .controls{
+    display:grid;
+    grid-template-columns:1fr 1fr auto;
+    gap:14px;
+    align-items:end;
+    background:#fff;
+    padding:14px;
+    border-radius:16px;
+    margin-bottom:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,.06);
+  }
+  .control label{
+    display:block;
+    font-weight:700;
+    font-size:14px;
+    margin-bottom:8px;
+  }
+  .row{
+    display:grid;
+    grid-template-columns:1fr 80px;
+    gap:10px;
+    align-items:center;
+  }
+  input[type=range]{width:100%}
+  input[type=number]{
+    width:100%;
+    padding:8px;
+    border:1px solid #cfd7e4;
+    border-radius:9px;
+    font-size:14px;
+  }
+  .buttons{display:flex;gap:8px}
+  button{
+    border:0;
+    border-radius:10px;
+    padding:11px 16px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  #launch{background:#5b5bd6;color:#fff}
+  #reset{background:#e9edf4;color:#243044}
+
+  .field{
+    position:relative;
+    height:560px;
+    min-height:380px;
+    background:#eef7ff;
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:0 6px 20px rgba(0,0,0,.06);
+  }
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  .tip{
+    position:absolute;
+    top:10px;
+    left:10px;
+    background:rgba(255,255,255,.92);
+    padding:7px 10px;
+    border-radius:10px;
+    font-size:12px;
+    color:#5f6b7a;
+    pointer-events:none;
+  }
+  .tooltip{
+    position:absolute;
+    display:none;
+    background:rgba(28,35,48,.94);
+    color:#fff;
+    font-size:12px;
+    line-height:1.45;
+    padding:8px 10px;
+    border-radius:9px;
+    pointer-events:none;
+    z-index:5;
+  }
+
+  @media(max-width:700px){
+    .controls{grid-template-columns:1fr}
+    .buttons{display:grid;grid-template-columns:1fr 1fr}
+    .field{height:500px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="controls">
+    <div class="control">
+      <label>Начальная скорость, м/с</label>
+      <div class="row">
+        <input id="vRange" type="range" min="5" max="50" step="1" value="20">
+        <input id="vInput" type="number" min="5" max="50" step="1" value="20">
+      </div>
+    </div>
+
+    <div class="control">
+      <label>Угол броска, °</label>
+      <div class="row">
+        <input id="aRange" type="range" min="10" max="80" step="1" value="45">
+        <input id="aInput" type="number" min="10" max="80" step="1" value="45">
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button id="launch">Запустить</button>
+      <button id="reset">Сбросить</button>
+    </div>
+  </div>
+
+  <div class="field" id="field">
+    <div class="tip">Наведи курсор на траекторию или нажми на неё</div>
+    <canvas id="canvas"></canvas>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const g = 9.8;
+  const colors = ['#5B5BD6','#E67E22','#1E9E72','#C94E72','#2F80ED','#8E5AC7'];
+
+  const vRange = document.getElementById('vRange');
+  const vInput = document.getElementById('vInput');
+  const aRange = document.getElementById('aRange');
+  const aInput = document.getElementById('aInput');
+  const launchBtn = document.getElementById('launch');
+  const resetBtn = document.getElementById('reset');
+  const canvas = document.getElementById('canvas');
+  const field = document.getElementById('field');
+  const tooltip = document.getElementById('tooltip');
+  const ctx = canvas.getContext('2d');
+
+  let trajectories = [];
+  let current = null;
+  let selected = null;
+  let plot = null;
+
+  function sync(range,input){
+    range.addEventListener('input',function(){input.value=range.value;});
+    input.addEventListener('input',function(){
+      let value = Number(input.value);
+      if (Number.isFinite(value)){
+        value = Math.max(Number(input.min),Math.min(Number(input.max),value));
+        range.value=value;
+      }
+    });
+  }
+  sync(vRange,vInput);
+  sync(aRange,aInput);
+
+  function createTrajectory(v,angle){
+    const rad = angle*Math.PI/180;
+    const vx = v*Math.cos(rad);
+    const vy = v*Math.sin(rad);
+    const T = 2*vy/g;
+    const R = vx*T;
+    const H = vy*vy/(2*g);
+    return {
+      v:v,
+      angle:angle,
+      vx:vx,
+      vy:vy,
+      T:T,
+      R:R,
+      H:H,
+      color:colors[trajectories.length % colors.length]
+    };
+  }
+
+  function pointAt(tr,t){
+    return {
+      t:t,
+      x:tr.vx*t,
+      y:Math.max(0,tr.vy*t-0.5*g*t*t)
+    };
+  }
+
+  function niceStep(raw){
+    const p = Math.pow(10,Math.floor(Math.log10(raw)));
+    const n = raw/p;
+    if(n<=1) return p;
+    if(n<=2) return 2*p;
+    if(n<=5) return 5*p;
+    return 10*p;
+  }
+
+  function resize(){
+    const r = field.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio||1,2);
+    canvas.width = Math.round(r.width*dpr);
+    canvas.height = Math.round(r.height*dpr);
+    canvas.style.width = r.width+'px';
+    canvas.style.height = r.height+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    calculatePlot();
+    draw();
+  }
+
+  function calculatePlot(){
+    const w = field.clientWidth;
+    const h = field.clientHeight;
+    const margin = {left:56,right:24,top:44,bottom:46};
+    const innerW = w-margin.left-margin.right;
+    const innerH = h-margin.top-margin.bottom;
+
+    const all = trajectories.slice();
+    if(current) all.push(current.tr);
+
+    let maxX = 20;
+    let maxY = 10;
+    for(const tr of all){
+      maxX = Math.max(maxX,tr.R*1.12);
+      maxY = Math.max(maxY,tr.H*1.20);
+    }
+
+    const scale = Math.min(innerW/maxX,innerH/maxY);
+
+    plot = {
+      w:w,h:h,
+      left:margin.left,
+      right:margin.right,
+      top:margin.top,
+      bottom:margin.bottom,
+      originX:margin.left,
+      originY:h-margin.bottom,
+      scale:scale,
+      xMax:innerW/scale,
+      yMax:innerH/scale
+    };
+  }
+
+  function worldToScreen(x,y){
+    return {
+      x:plot.originX+x*plot.scale,
+      y:plot.originY-y*plot.scale
+    };
+  }
+
+  function drawGrid(){
+    // Небо.
+    ctx.fillStyle='#eef7ff';
+    ctx.fillRect(0,0,plot.w,plot.h);
+
+    // Полупрозрачные холмы на дальнем плане.
+    ctx.save();
+    ctx.globalAlpha=0.18;
+
+    ctx.fillStyle='#9dbb90';
+    ctx.beginPath();
+    ctx.moveTo(0,plot.originY);
+    ctx.quadraticCurveTo(plot.w*0.14,plot.originY-34,plot.w*0.30,plot.originY);
+    ctx.quadraticCurveTo(plot.w*0.45,plot.originY-22,plot.w*0.61,plot.originY);
+    ctx.lineTo(0,plot.originY);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle='#8fa8ba';
+    ctx.beginPath();
+    ctx.moveTo(plot.w*0.42,plot.originY);
+    ctx.quadraticCurveTo(plot.w*0.62,plot.originY-46,plot.w*0.78,plot.originY);
+    ctx.quadraticCurveTo(plot.w*0.90,plot.originY-26,plot.w,plot.originY);
+    ctx.lineTo(plot.w,plot.originY);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+
+    // Земля.
+    ctx.fillStyle='rgba(238,243,228,.92)';
+    ctx.fillRect(0,plot.originY,plot.w,plot.h-plot.originY);
+
+    const xStep=niceStep(75/plot.scale);
+    const yStep=niceStep(75/plot.scale);
+
+    ctx.font='12px Arial';
+    ctx.lineWidth=1;
+
+    for(let x=0;x<=plot.xMax+0.001;x+=xStep){
+      const p=worldToScreen(x,0);
+      ctx.strokeStyle=x===0?'#7d8797':'rgba(120,135,155,.25)';
+      ctx.beginPath();
+      ctx.moveTo(p.x,plot.top);
+      ctx.lineTo(p.x,plot.originY);
+      ctx.stroke();
+
+      ctx.fillStyle='#667085';
+      ctx.textAlign='center';
+      ctx.textBaseline='top';
+      ctx.fillText(formatNumber(x),p.x,plot.originY+7);
+    }
+
+    for(let y=0;y<=plot.yMax+0.001;y+=yStep){
+      const p=worldToScreen(0,y);
+      ctx.strokeStyle=y===0?'#7d8797':'rgba(120,135,155,.25)';
+      ctx.beginPath();
+      ctx.moveTo(plot.originX,p.y);
+      ctx.lineTo(plot.w-plot.right,p.y);
+      ctx.stroke();
+
+      ctx.fillStyle='#667085';
+      ctx.textAlign='right';
+      ctx.textBaseline='middle';
+      ctx.fillText(formatNumber(y),plot.originX-8,p.y);
+    }
+
+    ctx.fillStyle='#344054';
+    ctx.font='bold 12px Arial';
+    ctx.textAlign='right';
+    ctx.fillText('x, м',plot.w-plot.right,plot.originY-8);
+    ctx.textAlign='left';
+    ctx.fillText('y, м',plot.originX+8,plot.top+10);
+  }
+
+  function formatNumber(n){
+    return Math.abs(n-Math.round(n))<1e-6 ? String(Math.round(n)) : n.toFixed(1).replace('.',',');
+  }
+
+  function drawTrajectory(tr,progress,highlight){
+    const endT=tr.T*progress;
+    const count=120;
+
+    ctx.save();
+    ctx.strokeStyle=tr.color;
+    ctx.lineWidth=highlight?3.5:2.5;
+    ctx.lineCap='round';
+    ctx.beginPath();
+
+    for(let i=0;i<=count;i++){
+      const t=endT*i/count;
+      const s=pointAt(tr,t);
+      const p=worldToScreen(s.x,s.y);
+      if(i===0) ctx.moveTo(p.x,p.y);
+      else ctx.lineTo(p.x,p.y);
+    }
+    ctx.stroke();
+
+    if(progress>=0.999){
+      const end=worldToScreen(tr.R,0);
+      const text=tr.v+' м/с, '+tr.angle+'°';
+      ctx.font='11px Arial';
+      const tw=ctx.measureText(text).width;
+      const x=Math.max(plot.originX+3,Math.min(end.x-tw-12,plot.w-plot.right-tw-12));
+      const y=end.y-25;
+      ctx.fillStyle='rgba(255,255,255,.9)';
+      ctx.fillRect(x,y,tw+10,18);
+      ctx.fillStyle='#344054';
+      ctx.textAlign='left';
+      ctx.textBaseline='middle';
+      ctx.fillText(text,x+5,y+9);
+    }
+
+    if(progress<0.999){
+      const s=pointAt(tr,endT);
+      const p=worldToScreen(s.x,s.y);
+      ctx.fillStyle=tr.color;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,6,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawSelection(){
+    if(!selected) return;
+    const s=pointAt(selected.tr,selected.t);
+    const p=worldToScreen(s.x,s.y);
+    const px=worldToScreen(s.x,0);
+    const py=worldToScreen(0,s.y);
+
+    ctx.save();
+    ctx.strokeStyle='rgba(70,80,95,.65)';
+    ctx.setLineDash([5,5]);
+
+    ctx.beginPath();
+    ctx.moveTo(p.x,p.y);
+    ctx.lineTo(px.x,px.y);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(p.x,p.y);
+    ctx.lineTo(py.x,py.y);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.fillStyle=selected.tr.color;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,6,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    tooltip.innerHTML=
+      't = '+s.t.toFixed(2).replace('.',',')+' с<br>'+
+      'x = '+s.x.toFixed(1).replace('.',',')+' м<br>'+
+      'y = '+s.y.toFixed(1).replace('.',',')+' м';
+
+    tooltip.style.display='block';
+
+    let tx=p.x+12;
+    let ty=p.y-36;
+    if(tx+130>plot.w) tx=p.x-135;
+    if(ty<4) ty=4;
+    tooltip.style.left=tx+'px';
+    tooltip.style.top=ty+'px';
+  }
+
+  function draw(){
+    if(!plot) return;
+    drawGrid();
+
+    for(const tr of trajectories){
+      drawTrajectory(tr,1,selected && selected.tr===tr);
+    }
+
+    if(current){
+      drawTrajectory(current.tr,current.progress,false);
+    }
+
+    if(selected) drawSelection();
+    else tooltip.style.display='none';
+  }
+
+  function launch(){
+    if(current) return; // только пока идёт короткая анимация
+
+    const v=Math.max(5,Math.min(50,Number(vInput.value)||20));
+    const angle=Math.max(10,Math.min(80,Number(aInput.value)||45));
+
+    vInput.value=v;
+    vRange.value=v;
+    aInput.value=angle;
+    aRange.value=angle;
+
+    selected=null;
+
+    const tr=createTrajectory(v,angle);
+    current={tr:tr,progress:0};
+
+    calculatePlot();
+    draw();
+
+    const started=performance.now();
+    const duration=1200;
+
+    function animate(now){
+      if(!current) return;
+
+      current.progress=Math.min(1,(now-started)/duration);
+      draw();
+
+      if(current.progress<1){
+        requestAnimationFrame(animate);
+      }else{
+        trajectories.push(current.tr);
+        current=null;
+        calculatePlot();
+        draw();
+      }
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  function reset(){
+    trajectories=[];
+    current=null;
+    selected=null;
+    tooltip.style.display='none';
+    vRange.value=vInput.value=20;
+    aRange.value=aInput.value=45;
+    calculatePlot();
+    draw();
+  }
+
+  function nearestTrajectory(px,py){
+    if(!trajectories.length) return null;
+
+    let best=null;
+    let bestD=Infinity;
+
+    // Переводим x курсора в физическую координату.
+    const worldX=(px-plot.originX)/plot.scale;
+
+    for(const tr of trajectories){
+      // Так как x = vx*t, получаем хорошую начальную оценку времени.
+      let t0=worldX/tr.vx;
+      if(!Number.isFinite(t0)) t0=0;
+      t0=Math.max(0,Math.min(tr.T,t0));
+
+      // Локальный поиск вокруг оценки t0.
+      // Ширины хватает даже для почти вертикальных траекторий.
+      const span=Math.max(tr.T*0.08,0.08);
+      let localBestT=t0;
+      let localBestD=Infinity;
+
+      const passes=[
+        {half:span,steps:50},
+        {half:span*0.20,steps:40},
+        {half:span*0.04,steps:30}
+      ];
+
+      for(const pass of passes){
+        const left=Math.max(0,localBestT-pass.half);
+        const right=Math.min(tr.T,localBestT+pass.half);
+
+        for(let i=0;i<=pass.steps;i++){
+          const t=left+(right-left)*i/pass.steps;
+          const s=pointAt(tr,t);
+          const p=worldToScreen(s.x,s.y);
+          const d=Math.hypot(px-p.x,py-p.y);
+
+          if(d<localBestD){
+            localBestD=d;
+            localBestT=t;
+          }
+        }
+      }
+
+      if(localBestD<bestD){
+        bestD=localBestD;
+        best={tr:tr,t:localBestT};
+      }
+    }
+
+    // Невидимая область захвата вокруг линии.
+    return bestD<=34 ? best : null;
+  }
+
+  function pointerPos(ev){
+    const r=canvas.getBoundingClientRect();
+    return {x:ev.clientX-r.left,y:ev.clientY-r.top};
+  }
+
+  canvas.addEventListener('mousemove',function(ev){
+    if(current) return;
+    const p=pointerPos(ev);
+    selected=nearestTrajectory(p.x,p.y);
+    draw();
+  });
+
+  canvas.addEventListener('mouseleave',function(){
+    selected=null;
+    draw();
+  });
+
+  canvas.addEventListener('pointerdown',function(ev){
+    if(current) return;
+    ev.preventDefault();
+    const p=pointerPos(ev);
+    selected=nearestTrajectory(p.x,p.y);
+    draw();
+  });
+
+  launchBtn.addEventListener('click',launch);
+  resetBtn.addEventListener('click',reset);
+  window.addEventListener('resize',resize);
+
+  resize();
+})();
+</script>
+</body>
+</html>
