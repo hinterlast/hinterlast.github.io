@@ -22,16 +22,16 @@
   .pill{padding:10px 14px;border-radius:12px;background:linear-gradient(180deg,#faf7fe,#f0eafd);border:1px solid #e4dbee;font-weight:800}
 
   .scene{
-    position:relative;height:385px;overflow:hidden;border-radius:18px;border:1px solid #d1dce7;
+    position:relative;height:300px;overflow:hidden;border-radius:18px;border:1px solid #d1dce7;
     background:
       radial-gradient(circle at 85% 11%, rgba(255,255,255,.32) 0 8%, transparent 9%),
-      linear-gradient(180deg,#e8dffc 0%, #e0ebfb 45%, #c9f3e1 70%, #bbf6d3 70.1%, #8bcfa9 71.8%, #a88b69 71.9%, #c3aa8a 100%);
+      linear-gradient(180deg,#e8dffc 0%, #e0ebfb 45%, #c9f3e1 80%, #bbf6d3 80.1%, #8bcfa9 81.8%, #a88b69 81.9%, #c3aa8a 100%);
   }
   .gridGlow{position:absolute;inset:0;pointer-events:none;opacity:.28;background:
       linear-gradient(rgba(255,255,255,.14) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255,255,255,.14) 1px, transparent 1px);
       background-size:32px 32px}
-  .groundLine{position:absolute;left:0;right:0;top:71.9%;height:4px;background:#72bc91;box-shadow:0 1px 0 rgba(255,255,255,.55) inset}
+  .groundLine{position:absolute;left:0;right:0;top:81.9%;height:4px;background:#72bc91;box-shadow:0 1px 0 rgba(255,255,255,.55) inset}
 
   .dropzone{
     position:absolute;top:12px;bottom:41%;width:31%;border:2px dashed rgba(89,89,89,.25);border-radius:18px;
@@ -41,7 +41,7 @@
   .dropzone.right{right:12px}
   .dropzone.active{background:rgba(86,232,145,.17);border-color:#56e891;color:#34634b}
 
-  .motionLayer{position:absolute;left:50%;top:32%;width:700px;height:190px;transform:translateX(-50%);will-change:transform}
+  .motionLayer{position:absolute;left:50%;top:33%;width:700px;height:190px;transform:translateX(-50%);will-change:transform}
 
   .cartWrap{position:absolute;left:50%;top:44px;width:250px;height:132px;transform:translateX(-50%)}
   .cartBox{
@@ -101,13 +101,13 @@
   .hint{font-size:13px;color:#6a6775;margin:10px 0 0}
 
   @media (max-width:800px){
-    .scene{height:420px}
-    .motionLayer{top:33%;width:600px;transform:translateX(-50%) scale(.9)}
+    .scene{height:320px}
+    .motionLayer{top:35%;width:600px;transform:translateX(-50%) scale(.9)}
     .dropzone{bottom:44%}
   }
   @media (max-width:640px){
-    body{padding:10px}.panel{padding:12px}.scene{height:420px}
-    .motionLayer{width:500px;top:31%;transform:translateX(-50%) scale(.74)}
+    body{padding:10px}.panel{padding:12px}.scene{height:320px}
+    .motionLayer{width:500px;top:37%;transform:translateX(-50%) scale(.74)}
     .dropzone{width:33%;font-size:12px}
     .robotCard{width:76px;min-height:116px}.robotCard svg{width:52px;height:76px}
     .pill{font-size:13px;padding:8px 10px}
@@ -117,7 +117,6 @@
 <body>
 <main class="app">
   <h1>Равнодействующая сил</h1>
-  <p class="lead">Размести роботов по обе стороны тележки. Все роботы одинаковые по размеру, но каждый тянет с разной силой. Чем больше равнодействующая сила, тем быстрее поедет тележка.</p>
 
   <section class="panel">
     <div class="toolbar">
@@ -154,7 +153,6 @@
       </div>
     </div>
 
-    <h3>Роботы-помощники</h3>
     <p class="hint">Перетащи робота на левую или правую сторону. Можно также нажать на карточку робота, а потом на нужную область. Нажми на уже поставленного робота, чтобы вернуть его обратно.</p>
     <div class="pool" id="pool"></div>
 
@@ -165,7 +163,6 @@
     </div>
 
     <div class="result" id="result" role="status" aria-live="polite">Размести хотя бы одного робота и нажми «Старт».</div>
-    <p class="hint">Модель упрощённая: масса тележки 10 кг, она сначала покоится, трением пренебрегаем. Направление и скорость анимации зависят от равнодействующей силы.</p>
   </section>
 </main>
 
@@ -241,7 +238,7 @@
     if (placed) {
       el.innerHTML = `${robotSVG(palette.main, palette.glow)}<div class="forceTag">${p.force} Н</div>`;
     } else {
-      el.innerHTML = `${robotSVG(palette.main, palette.glow)}<div class="force">${p.force} Н</div><div class="role">${palette.name}</div>`;
+      el.innerHTML = `${robotSVG(palette.main, palette.glow)}<div class="force">${p.force} Н</div>`;
     }
 
     el.addEventListener('click', () => {
