@@ -1,1 +1,412 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Равнодействующая сил — симулятор</title>
+<style>
+  :root{
+    --panel:#ffffff;
+    --line:#d6dde5;
+    --ink:#45454c;
+    --muted:#646b77;
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:16px;background:linear-gradient(180deg,#f5effd,#eaf5f0);color:var(--ink)}
+  .app{max-width:1100px;margin:0 auto}
+  h1{margin:0 0 8px;font-size:clamp(24px,3vw,34px)}
+  .lead{margin:0 0 16px;color:var(--muted)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:0 14px 38px rgba(35,52,74,.045)}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .pill{padding:10px 14px;border-radius:12px;background:linear-gradient(180deg,#faf7fe,#f0eafd);border:1px solid #e4dbee;font-weight:800}
 
+  .scene{
+    position:relative;height:385px;overflow:hidden;border-radius:18px;border:1px solid #d1dce7;
+    background:
+      radial-gradient(circle at 85% 11%, rgba(255,255,255,.32) 0 8%, transparent 9%),
+      linear-gradient(180deg,#e8dffc 0%, #e0ebfb 45%, #c9f3e1 70%, #bbf6d3 70.1%, #8bcfa9 71.8%, #a88b69 71.9%, #c3aa8a 100%);
+  }
+  .gridGlow{position:absolute;inset:0;pointer-events:none;opacity:.28;background:
+      linear-gradient(rgba(255,255,255,.14) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.14) 1px, transparent 1px);
+      background-size:32px 32px}
+  .groundLine{position:absolute;left:0;right:0;top:71.9%;height:4px;background:#72bc91;box-shadow:0 1px 0 rgba(255,255,255,.55) inset}
+
+  .dropzone{
+    position:absolute;top:12px;bottom:41%;width:31%;border:2px dashed rgba(89,89,89,.25);border-radius:18px;
+    display:flex;align-items:flex-start;justify-content:center;padding-top:14px;font-weight:800;color:#555d68;background:rgba(255,255,255,.12)
+  }
+  .dropzone.left{left:12px}
+  .dropzone.right{right:12px}
+  .dropzone.active{background:rgba(86,232,145,.17);border-color:#56e891;color:#34634b}
+
+  .motionLayer{position:absolute;left:50%;top:32%;width:700px;height:190px;transform:translateX(-50%);will-change:transform}
+
+  .cartWrap{position:absolute;left:50%;top:44px;width:250px;height:132px;transform:translateX(-50%)}
+  .cartBox{
+    position:absolute;left:42px;top:16px;width:166px;height:68px;
+    background:linear-gradient(180deg,#c7cfd6,#aab5c1 42%,#909ba8 100%);
+    clip-path:polygon(8% 0%,92% 0%,100% 100%,0% 100%);
+    border:3px solid #747e89;
+    box-shadow:inset 0 6px 0 rgba(255,255,255,.12),0 10px 16px rgba(0,0,0,.12)
+  }
+  .cartRim{position:absolute;left:54px;top:21px;width:142px;height:5px;background:#e6e0e6;border-radius:999px;opacity:.8}
+  .cargoBed{position:absolute;left:54px;top:6px;width:142px;height:42px;overflow:hidden}
+  .sack{position:absolute;bottom:0;border-radius:50% 50% 42% 42%;background:linear-gradient(180deg,#aa8f6c,#7e6443);border:2px solid #6f583f;box-shadow:inset 0 4px 0 rgba(255,255,255,.14)}
+  .sack:before{content:"";position:absolute;top:-3px;left:50%;width:16px;height:8px;transform:translateX(-50%);border-radius:999px;background:#6b5339}
+  .s1{left:2px;width:38px;height:28px}.s2{left:26px;width:42px;height:32px}.s3{left:56px;width:40px;height:27px}.s4{left:84px;width:44px;height:34px}.s5{left:112px;width:28px;height:23px}
+  .wheel{position:absolute;top:84px;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 50% 50%,#dce4ee 0 19%,#2c3440 20% 45%,#aab5c1 46% 62%,#595959 63% 100%);box-shadow:0 2px 4px rgba(0,0,0,.22)}
+  .wheel.a{left:70px}.wheel.b{right:70px}
+  .handle{position:absolute;top:49px;width:366px;height:8px;border-radius:999px;background:linear-gradient(180deg,#bda183,#7e6443);box-shadow:0 1px 0 rgba(255,255,255,.4) inset}
+  .handle.left{right:calc(100% - 54px)}
+  .handle.right{left:calc(100% - 54px)}
+  .handle:before,.handle:after{content:"";position:absolute;top:-4px;width:10px;height:16px;border:2px solid #7e6443;border-radius:10px}
+  .handle.left:before{left:-5px}.handle.left:after{right:-4px}
+  .handle.right:before{left:-4px}.handle.right:after{right:-5px}
+
+  .placedGroup{position:absolute;top:26px;display:flex;align-items:flex-end;gap:8px;min-height:122px;max-width:240px}
+  .placedGroup.left{right:50%;margin-right:134px;justify-content:flex-end}
+  .placedGroup.right{left:50%;margin-left:134px}
+
+  .pool{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .robotCard{
+    user-select:none;touch-action:none;cursor:grab;
+    width:86px;min-height:124px;padding:8px 6px;text-align:center;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    border-radius:16px;border:1px solid #e1ddea;background:linear-gradient(180deg,#faf7fe,#f0eafd);
+    box-shadow:0 5px 12px rgba(35,52,74,.045);font-weight:800;
+    transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .robotCard:hover{transform:translateY(-2px);box-shadow:0 10px 18px rgba(35,52,74,.07)}
+  .robotCard:active{cursor:grabbing}
+  .robotCard.selected{outline:3px solid #b075f3}
+  .robotCard svg{display:block;width:58px;height:82px}
+  .robotCard .force{font-size:15px;margin-top:4px}
+  .robotCard .role{font-size:11px;color:#6a7b94;font-weight:700}
+
+  .robotPlaced{width:52px;min-height:0;padding:0;border:none;background:none;box-shadow:none;cursor:pointer}
+  .robotPlaced:hover{transform:none;box-shadow:none}
+  .robotPlaced svg{width:52px;height:82px}
+  .robotPlaced .forceTag{margin-top:-3px;padding:2px 6px;border-radius:999px;font-size:11px;font-weight:900;color:#595959;background:rgba(255,255,255,.88);border:1px solid rgba(150,170,198,.7)}
+  .robotPlaced.rightFacing svg{transform:scaleX(-1)}
+  .robotPlaced.leftFacing svg{transform:none}
+
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  button{border:none;border-radius:12px;padding:11px 18px;font-weight:800;font-size:15px;cursor:pointer}
+  button.primary{background:linear-gradient(180deg,#80efa9,#56e891);color:#28573d}
+  button.secondary{background:#eee4fa;color:#59516b}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .result{margin-top:12px;min-height:58px;padding:14px;border-radius:14px;background:linear-gradient(180deg,#f7f0fd,#f1eafa);border:1px solid #e3d8f1;line-height:1.45}
+  .hint{font-size:13px;color:#6a6775;margin:10px 0 0}
+
+  @media (max-width:800px){
+    .scene{height:420px}
+    .motionLayer{top:33%;width:600px;transform:translateX(-50%) scale(.9)}
+    .dropzone{bottom:44%}
+  }
+  @media (max-width:640px){
+    body{padding:10px}.panel{padding:12px}.scene{height:420px}
+    .motionLayer{width:500px;top:31%;transform:translateX(-50%) scale(.74)}
+    .dropzone{width:33%;font-size:12px}
+    .robotCard{width:76px;min-height:116px}.robotCard svg{width:52px;height:76px}
+    .pill{font-size:13px;padding:8px 10px}
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <h1>Равнодействующая сил</h1>
+  <p class="lead">Размести роботов по обе стороны тележки. Все роботы одинаковые по размеру, но каждый тянет с разной силой. Чем больше равнодействующая сила, тем быстрее поедет тележка.</p>
+
+  <section class="panel">
+    <div class="toolbar">
+      <div class="pill" id="leftSum">← Слева: 0 Н</div>
+      <div class="pill" id="rightSum">Справа: 0 Н →</div>
+      <div class="pill" id="net">Равнодействующая: 0 Н</div>
+    </div>
+
+    <div class="scene" id="scene">
+      <div class="gridGlow"></div>
+      <div class="dropzone left" data-side="left">← Тянут влево</div>
+      <div class="dropzone right" data-side="right">Тянут вправо →</div>
+      <div class="groundLine"></div>
+
+      <div class="motionLayer" id="motionLayer">
+        <div class="placedGroup left" id="leftPeople"></div>
+        <div class="placedGroup right" id="rightPeople"></div>
+
+        <div class="cartWrap">
+          <div class="handle left"></div>
+          <div class="handle right"></div>
+          <div class="cargoBed">
+            <div class="sack s1"></div>
+            <div class="sack s2"></div>
+            <div class="sack s3"></div>
+            <div class="sack s4"></div>
+            <div class="sack s5"></div>
+          </div>
+          <div class="cartBox"></div>
+          <div class="cartRim"></div>
+          <div class="wheel a"></div>
+          <div class="wheel b"></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Роботы-помощники</h3>
+    <p class="hint">Перетащи робота на левую или правую сторону. Можно также нажать на карточку робота, а потом на нужную область. Нажми на уже поставленного робота, чтобы вернуть его обратно.</p>
+    <div class="pool" id="pool"></div>
+
+    <div class="controls">
+      <button class="primary" id="start">▶ Старт</button>
+      <button class="secondary" id="reset">↻ Сбросить</button>
+      <button class="secondary" id="random">Новый набор</button>
+    </div>
+
+    <div class="result" id="result" role="status" aria-live="polite">Размести хотя бы одного робота и нажми «Старт».</div>
+    <p class="hint">Модель упрощённая: масса тележки 10 кг, она сначала покоится, трением пренебрегаем. Направление и скорость анимации зависят от равнодействующей силы.</p>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const pool = document.getElementById('pool');
+  const leftBox = document.getElementById('leftPeople');
+  const rightBox = document.getElementById('rightPeople');
+  const motionLayer = document.getElementById('motionLayer');
+  const scene = document.getElementById('scene');
+  const result = document.getElementById('result');
+  const start = document.getElementById('start');
+  const resetBtn = document.getElementById('reset');
+  const randomBtn = document.getElementById('random');
+
+  let people = [];
+  let chosen = null;
+  let running = false;
+  let frame = null;
+
+  const baseForces = [2,3,4,5,6,8];
+  const robotColors = [
+    { main:'#00aefa', glow:'#82d8fd', name:'Голубой' },
+    { main:'#fb8023', glow:'#ffc188', name:'Оранжевый' },
+    { main:'#ff64b0', glow:'#ffc1de', name:'Розовый' },
+    { main:'#b075f3', glow:'#dec2fb', name:'Фиолетовый' }
+  ];
+
+  function robotSVG(main, glow) {
+    const id = ('g' + main + glow).replace(/[^a-zA-Z0-9]/g,'');
+    return `
+      <svg viewBox="0 0 70 96" aria-hidden="true">
+        <defs>
+          <linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${glow}"/>
+            <stop offset="100%" stop-color="${main}"/>
+          </linearGradient>
+        </defs>
+        <ellipse cx="35" cy="92" rx="16" ry="4" fill="rgba(0,0,0,.12)"/>
+        <rect x="22" y="7" width="26" height="18" rx="8" fill="url(#${id})" stroke="#56646a" stroke-width="2.4"/>
+        <rect x="27" y="12" width="16" height="7" rx="4" fill="#dff8ff" stroke="#56646a" stroke-width="1.4"/>
+        <circle cx="31" cy="15.5" r="1.6" fill="#9cbec5"/>
+        <circle cx="39" cy="15.5" r="1.6" fill="#9cbec5"/>
+        <rect x="20" y="31" width="30" height="31" rx="8" fill="url(#${id})" stroke="#56646a" stroke-width="2.4"/>
+        <rect x="27" y="39" width="16" height="13" rx="4" fill="#6b7c83" opacity=".52"/>
+        <path d="M20 38 L10 54" stroke="#56646a" stroke-width="5.2" stroke-linecap="round"/>
+        <path d="M50 38 L61 51" stroke="#56646a" stroke-width="5.2" stroke-linecap="round"/>
+        <path d="M20 38 L10 54" stroke="${main}" stroke-width="2.6" stroke-linecap="round"/>
+        <path d="M50 38 L61 51" stroke="${main}" stroke-width="2.6" stroke-linecap="round"/>
+        <path d="M29 62 L24 84" stroke="#56646a" stroke-width="6" stroke-linecap="round"/>
+        <path d="M41 62 L46 84" stroke="#56646a" stroke-width="6" stroke-linecap="round"/>
+        <path d="M29 62 L24 84" stroke="${main}" stroke-width="2.6" stroke-linecap="round"/>
+        <path d="M41 62 L46 84" stroke="${main}" stroke-width="2.6" stroke-linecap="round"/>
+        <circle cx="9" cy="55" r="3.2" fill="${glow}" stroke="#56646a" stroke-width="1.5"/>
+        <circle cx="62" cy="52" r="3.2" fill="${glow}" stroke="#56646a" stroke-width="1.5"/>
+        <circle cx="24" cy="84" r="3.2" fill="${glow}" stroke="#56646a" stroke-width="1.5"/>
+        <circle cx="46" cy="84" r="3.2" fill="${glow}" stroke="#56646a" stroke-width="1.5"/>
+      </svg>`;
+  }
+
+  function makeCard(p, placed = false) {
+    const palette = robotColors[p.colorIndex % robotColors.length];
+    const el = document.createElement('div');
+    el.className = placed ? 'robotCard robotPlaced' : 'robotCard';
+    if (placed) el.classList.add(p.side === 'right' ? 'rightFacing' : 'leftFacing');
+    el.dataset.id = String(p.id);
+    el.tabIndex = 0;
+    el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', `Робот силой ${p.force} ньютонов`);
+
+    if (placed) {
+      el.innerHTML = `${robotSVG(palette.main, palette.glow)}<div class="forceTag">${p.force} Н</div>`;
+    } else {
+      el.innerHTML = `${robotSVG(palette.main, palette.glow)}<div class="force">${p.force} Н</div><div class="role">${palette.name}</div>`;
+    }
+
+    el.addEventListener('click', () => {
+      if (running) return;
+      if (p.side) {
+        p.side = null;
+        chosen = null;
+        render();
+      } else {
+        chosen = p.id;
+        render();
+      }
+    });
+
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        el.click();
+      }
+    });
+
+    if (!placed) {
+      el.addEventListener('pointerdown', (e) => {
+        if (running) return;
+        el.setPointerCapture(e.pointerId);
+        el.dataset.startX = e.clientX;
+        el.dataset.startY = e.clientY;
+      });
+
+      el.addEventListener('pointerup', (e) => {
+        if (running || el.dataset.startX === undefined) return;
+        const dx = e.clientX - Number(el.dataset.startX);
+        const dy = e.clientY - Number(el.dataset.startY);
+        delete el.dataset.startX;
+        delete el.dataset.startY;
+        if (Math.hypot(dx, dy) < 12) return;
+        const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-side]');
+        if (target) {
+          p.side = target.dataset.side;
+          chosen = null;
+          render();
+        }
+      });
+    }
+    return el;
+  }
+
+  function sums() {
+    let l = 0, r = 0;
+    for (const p of people) {
+      if (p.side === 'left') l += p.force;
+      if (p.side === 'right') r += p.force;
+    }
+    document.getElementById('leftSum').textContent = `← Слева: ${l} Н`;
+    document.getElementById('rightSum').textContent = `Справа: ${r} Н →`;
+    document.getElementById('net').textContent = `Равнодействующая: ${Math.abs(r - l)} Н ${r > l ? '→' : l > r ? '←' : ''}`;
+    return { l, r, d: r - l };
+  }
+
+  function render() {
+    pool.replaceChildren();
+    leftBox.replaceChildren();
+    rightBox.replaceChildren();
+
+    for (const p of people) {
+      if (p.side === 'left') {
+        leftBox.append(makeCard(p, true));
+      } else if (p.side === 'right') {
+        rightBox.append(makeCard(p, true));
+      } else {
+        const card = makeCard(p, false);
+        if (chosen === p.id) card.classList.add('selected');
+        pool.append(card);
+      }
+    }
+
+    document.querySelectorAll('.dropzone').forEach(z => z.classList.toggle('active', chosen !== null));
+    start.disabled = running || !people.some(p => p.side);
+    sums();
+  }
+
+  function resetMotion() {
+    if (frame) cancelAnimationFrame(frame);
+    frame = null;
+    running = false;
+    motionLayer.style.transform = 'translateX(-50%)';
+  }
+
+  function resetAll() {
+    resetMotion();
+    for (const p of people) p.side = null;
+    chosen = null;
+    result.textContent = 'Размести хотя бы одного робота и нажми «Старт».';
+    render();
+  }
+
+  function shuffle(arr) {
+    return arr.map(v => ({ v, r: Math.random() })).sort((a, b) => a.r - b.r).map(x => x.v);
+  }
+
+  function newSet() {
+    const base = shuffle(baseForces);
+    people = base.map((force, id) => ({ id, force, side: null, colorIndex: id % robotColors.length }));
+    resetAll();
+  }
+
+  document.querySelectorAll('[data-side]').forEach(zone => {
+    zone.addEventListener('click', (e) => {
+      if (running || chosen === null || e.target.closest('.robotCard')) return;
+      people[chosen].side = zone.dataset.side;
+      chosen = null;
+      render();
+    });
+  });
+
+  start.addEventListener('click', () => {
+    if (running) return;
+    const { l, r, d } = sums();
+    if (!l && !r) return;
+
+    running = true;
+    chosen = null;
+    render();
+
+    if (d === 0) {
+      result.innerHTML = `⚖️ <strong>Равновесие!</strong> Слева действует <strong>${l} Н</strong>, справа — <strong>${r} Н</strong>. Равнодействующая равна <strong>0 Н</strong>. При массе тележки 10 кг ускорение <strong>0 м/с²</strong>, поэтому тележка остаётся на месте.`;
+      running = false;
+      render();
+      return;
+    }
+
+    const magnitude = Math.abs(d);
+    const direction = Math.sign(d);
+    const distance = Math.min(scene.clientWidth * (0.14 + magnitude * 0.008), 185);
+    const duration = Math.max(850, 2800 - magnitude * 220);
+    const acceleration = (magnitude / 10).toLocaleString('ru-RU', {maximumFractionDigits: 2});
+    let startTime = null;
+
+    result.innerHTML = `Тележка пришла в движение. Равнодействующая: <strong>${magnitude} Н</strong>. Чем она больше, тем выше скорость движения.`;
+
+    function tick(time) {
+      if (startTime === null) startTime = time;
+      const t = Math.min(1, (time - startTime) / duration);
+      const ease = t * t * (3 - 2 * t);
+      motionLayer.style.transform = `translateX(calc(-50% + ${direction * distance * ease}px))`;
+
+      if (t < 1) {
+        frame = requestAnimationFrame(tick);
+      } else {
+        frame = null;
+        running = false;
+        const word = direction > 0 ? 'вправо' : 'влево';
+        result.innerHTML = `<strong>Результат: тележка переместилась ${word}.</strong> Слева — <strong>${l} Н</strong>, справа — <strong>${r} Н</strong>. Равнодействующая равна <strong>${magnitude} Н</strong> и направлена ${word}. При массе тележки <strong>10 кг</strong> её ускорение равно <strong>${acceleration} м/с²</strong>.`;
+        render();
+      }
+    }
+
+    frame = requestAnimationFrame(tick);
+  });
+
+  resetBtn.addEventListener('click', resetAll);
+  randomBtn.addEventListener('click', newSet);
+
+  newSet();
+})();
+</script>
+</body>
+</html>
