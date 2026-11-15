@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Энтропия — распределение молекул</title>
+<style>
+  :root { color-scheme: light; --ink:#344054; --muted:#7b8490; --border:#dcdfe3; --blue:#3199ce; --track:#e9edf0; --surface:#fff; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:18px; background:#fff; font-family:Arial, Helvetica, sans-serif; color:var(--ink); }
+  .sim { width:100%; max-width:760px; margin:auto; border:1px solid #e1e3e7; border-radius:16px; padding:18px 18px 20px; background:#fcfcfd; }
+  h1 { font-size:15px; line-height:1.45; margin:0 0 17px; font-weight:600; color:#333b45; }
+  .vessel { position:relative; height:auto; aspect-ratio: 2.34 / 1; min-height:185px; max-height:290px; background: #fdfdfd; border:3px solid #9ca0a4; border-radius:17px; overflow:hidden; }
+  .partition { position:absolute; left:50%; top:0; bottom:0; border-left:2px dashed #c8cbd0; transform:translateX(-1px); }
+  .particle { position:absolute; width:19px; height:19px; background:var(--blue); border-radius:50%; transform:translate(-50%,-50%); transition:left .43s cubic-bezier(.2,.75,.25,1), top .43s cubic-bezier(.2,.75,.25,1); }
+  .stats { display:flex; justify-content:space-between; gap:12px; margin:17px 0 8px; color:#69727d; font-size:13px; }
+  .stats strong { color:#344054; font-weight:600; }
+  .slider { display:block; width:100%; appearance:none; -webkit-appearance:none; height:13px; margin:15px 0 16px; background:var(--track); border-radius:999px; cursor:pointer; outline-offset:6px; }
+  .slider::-webkit-slider-thumb { -webkit-appearance:none; width:21px; height:21px; background:white; border:2px solid #c6cbd1; border-radius:50%; box-shadow:0 1px 3px #00000018; }
+  .slider::-moz-range-thumb { width:17px; height:17px; background:white; border:2px solid #c6cbd1; border-radius:50%; box-shadow:0 1px 3px #00000018; }
+  .buttons { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  button { padding:7px 13px; color:#59616b; font-size:13px; background:#fff; border:1px solid #d7dbe0; border-radius:999px; cursor:pointer; }
+  button:hover { background:#eff6fa; border-color:#b5d2e4; }
+  button:focus-visible { outline:2px solid #318fbe; outline-offset:2px; }
+  .outcome { margin-top:17px; padding:15px 16px 14px; border:1px solid #e0e8ed; border-radius:12px; background:#f5f9fb; }
+  .outcome-top { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .outcome-title { font-size:13px; color:#667381; }
+  .probability { font-size:25px; font-weight:700; font-variant-numeric:tabular-nums; color:#317ca5; }
+  .caption { margin:10px 0 0; font-size:14px; line-height:1.55; }
+  .detail { margin-top:9px; color:#77818d; font-size:12px; line-height:1.5; }
+  .footnote { color:#848c95; font-size:11px; line-height:1.5; margin:13px 1px 0; }
+  @media (max-width:450px){body{padding:8px}.sim{padding:13px 12px 16px}.vessel{min-height:150px}.particle{width:15px;height:15px}.stats{font-size:12px}.probability{font-size:22px}button{font-size:12px;padding:7px 10px}}
+  @media (prefers-reduced-motion:reduce){.particle{transition:none}}
+</style>
+</head>
+<body>
+<main class="sim">
+  <h1>Как распределяются молекулы в сосуде?</h1>
+  <div class="vessel" id="vessel" aria-label="Сосуд с десятью молекулами, разделённый пунктирной линией пополам">
+    <div class="partition" aria-hidden="true"></div>
+  </div>
+  <div class="stats">
+    <span>Слева: <strong id="leftCount">10</strong> из 10</span>
+    <span>Справа: <strong id="rightCount">0</strong> из 10</span>
+  </div>
+  <input class="slider" type="range" id="rightSlider" min="0" max="10" step="1" value="0" aria-label="Количество молекул справа" />
+  <div class="buttons">
+    <button type="button" data-right="0">Все слева</button>
+    <button type="button" data-right="5">Поровну</button>
+    <button type="button" data-right="10">Все справа</button>
+  </div>
+  <section class="outcome" aria-live="polite" aria-atomic="true">
+    <div class="outcome-top">
+      <span class="outcome-title">Вероятность такого распределения</span>
+      <span class="probability" id="probability">0,098 %</span>
+    </div>
+    <p class="caption" id="comment">Почти невероятно! Как случайно встретить зебру на улице Новосибирска.</p>
+    <div class="detail" id="detail">Подходящих микросостояний: 1 из 1024.</div>
+  </section>
+  <p class="footnote">Модель: каждая из 10 молекул с равной вероятностью может оказаться в левой или правой половине. Учитываются распределения молекул по половинам, а не их точные координаты.</p>
+</main>
+<script>
+(() => {
+  'use strict';
+  const N = 10;
+  const vessel = document.getElementById('vessel');
+  const slider = document.getElementById('rightSlider');
+  const leftCount = document.getElementById('leftCount');
+  const rightCount = document.getElementById('rightCount');
+  const probability = document.getElementById('probability');
+  const comment = document.getElementById('comment');
+  const detail = document.getElementById('detail');
+  const circles = Array.from({length:N}, () => {
+    const element = document.createElement('span');
+    element.className = 'particle';
+    element.setAttribute('aria-hidden','true');
+    vessel.appendChild(element);
+    return element;
+  });
+  // Coordinates in each half, chosen to keep dots apart at every slider setting.
+  const slots = [
+    [0.19,0.19],[0.68,0.72],[0.49,0.42],[0.27,0.73],[0.80,0.22],
+    [0.13,0.46],[0.73,0.47],[0.43,0.84],[0.49,0.15],[0.86,0.85]
+  ];
+  const order = [3,0,8,1,6,4,9,2,7,5];
+  const combinations = [1,10,45,120,210,252,210,120,45,10,1];
+  const percent = x => (x < 0.1 ? x.toFixed(3) : x.toFixed(2)).replace('.',',') + ' %';
+  const commentary = difference => {
+    if (difference === 5) return 'Почти невероятно! Как случайно встретить зебру на улице Новосибирска.';
+    if (difference >= 3) return 'Редкое событие: почти все молекулы оказались в одной половине.';
+    if (difference === 2) return 'Такое распределение встречается, но заметно реже равномерного.';
+    if (difference === 1) return 'Очень распространённая ситуация — молекул почти поровну.';
+    return 'Самое вероятное распределение: по пять молекул в каждой половине!';
+  };
+  function update() {
+    const right = Number(slider.value);
+    const left = N - right;
+    leftCount.textContent = left;
+    rightCount.textContent = right;
+    const configs = combinations[right];
+    probability.textContent = percent(100 * configs / 2**N);
+    detail.textContent = `Подходящих микросостояний: ${configs} из 1024.`;
+    const d = Math.abs(right - 5);
+    // Five qualitative probability levels, symmetrically for left and right.
+    comment.textContent = commentary(d);
+    // Fill left and right with distinct slots, move existing particles smoothly.
+    circles.forEach((circle,i) => {
+      const isLeft = i < left;
+      const index = isLeft ? i : i - left;
+      const [x,y] = slots[order[index]];
+      circle.style.left = `${(isLeft ? 0 : 50) + 50*(0.09 + x*0.82)}%`;
+      circle.style.top = `${9 + y*82}%`;
+    });
+  }
+  slider.addEventListener('input',update);
+  document.querySelectorAll('[data-right]').forEach(button => button.addEventListener('click', () => {
+    slider.value = button.dataset.right;
+    update();
+  }));
+  update();
+})();
+</script>
+</body>
+</html>
