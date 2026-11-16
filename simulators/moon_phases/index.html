@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Фазы Луны — интерактивный симулятор</title>
+<style>
+:root{font-family:Arial,Helvetica,sans-serif;color:#292929;background:#fff;font-synthesis:none}*{box-sizing:border-box}body{margin:0;padding:14px;display:flex;justify-content:center}.sim{width:min(100%,820px);border:1px solid #dedede;border-radius:30px;overflow:hidden;background:white}.scene{position:relative;padding:18px 20px 8px}.topbar{display:flex;justify-content:flex-end;height:22px;gap:8px}.iconbtn{height:29px;width:29px;background:#fff;border:0;border-radius:50%;cursor:pointer;color:#999;display:grid;place-items:center}.iconbtn:hover{color:#333;background:#f2f2f2}.diagram{display:block;width:100%;height:auto;max-height:340px}.phase-panel{border-top:1px solid #ddd;background:#f7f7f7;padding:17px 18px 18px;text-align:center}.phase-name{font-family:Georgia,'Times New Roman',serif;font-size:20px;margin:0 0 7px}.explainer{font-size:12px;color:#787878;min-height:16px;margin:0 0 14px}.controls{display:grid;grid-template-columns:auto 70px minmax(140px,1fr);align-items:center;gap:12px;font-size:13px}.days{font-size:12px;color:#b1644a;white-space:nowrap}.range{width:100%;height:24px;appearance:none;background:transparent;cursor:pointer;outline-offset:5px}.range::-webkit-slider-runnable-track{height:22px;border-radius:20px;background:#e8e8e8}.range::-moz-range-track{height:22px;border-radius:20px;background:#e8e8e8}.range::-webkit-slider-thumb{appearance:none;width:20px;height:20px;margin-top:1px;border-radius:50%;background:white;border:1px solid #dedede;box-shadow:0 1px 2px #0001}.range::-moz-range-thumb{width:19px;height:19px;border-radius:50%;background:white;border:1px solid #dedede}.bottom{display:flex;justify-content:center;align-items:center;gap:9px;padding:10px 0 0}.chip{border:1px solid #dadada;background:#fff;color:#555;border-radius:16px;padding:5px 11px;font-size:12px;cursor:pointer}.chip:hover{background:#ececec}.figure-label{font-size:13px;fill:#555}canvas{display:none}@media(max-width:520px){body{padding:8px}.sim{border-radius:22px}.scene{padding:11px 7px 4px}.phase-panel{padding:14px 10px}.controls{grid-template-columns:1fr 60px;gap:8px}.controls label{grid-column:1/-1;text-align:left}.range{grid-column:1/-1;grid-row:2}.days{grid-column:2;grid-row:1;text-align:right}.diagram{max-height:none}.phase-name{font-size:18px}}
+</style>
+</head>
+<body>
+<div class="sim" role="region" aria-label="Симулятор фаз Луны">
+  <div class="scene">
+    <div class="topbar"><button class="iconbtn" id="reset" title="Вернуться к новолунию" aria-label="Сбросить к новолунию"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2.7 6.4M3 5v6h6"/></svg></button></div>
+    <svg class="diagram" viewBox="0 0 740 280" xmlns="http://www.w3.org/2000/svg" aria-label="Схема движения Луны вокруг Земли и наблюдаемая с Земли фаза">
+      <defs><clipPath id="moonclip"><circle r="11"/></clipPath></defs>
+      <line x1="330" y1="45" x2="330" y2="205" stroke="#d9d9d9" stroke-width="1.5" stroke-dasharray="4 5"/>
+      <line x1="466" y1="45" x2="466" y2="205" stroke="#444" stroke-width="1.2"/>
+      <circle cx="282" cy="113" r="24" fill="#ffd047" stroke="#eabf36" stroke-width=".5"/>
+      <circle cx="400" cy="113" r="47" fill="none" stroke="#c8c8c8" stroke-dasharray="4 4" stroke-width="1"/>
+      <circle cx="400" cy="113" r="16" fill="#078ef8"/>
+      <g id="moon" transform="translate(353 113)"><circle r="9" fill="#242424"/><path d="M0,-9 A9,9 0 0 0 0,9 Z" fill="#fff0bd"/><circle r="9" fill="none" stroke="#424242" stroke-width=".75"/></g>
+      <g stroke="#ffc334" fill="none" stroke-width="2" stroke-linecap="round"><path d="M321 113H379"/><path d="M420 113H461"/><path d="m455 108 6 5-6 5"/></g>
+      <g fill="none" stroke="#078ef8" stroke-width="1.8" stroke-linecap="round"><path d="M340 113A60 60 0 0 0 382 170"/><path d="m376 170 7 2-1-7"/></g>
+      <g id="moonView" transform="translate(516 113)"><circle r="24" fill="#242424"/><image id="phaseImage" x="-24" y="-24" width="48" height="48"/></g>
+      <text x="282" y="206" text-anchor="middle" class="figure-label">Солнце</text>
+      <text x="400" y="206" text-anchor="middle" class="figure-label">Земля</text>
+      <text x="516" y="206" text-anchor="middle" class="figure-label">Фаза Луны</text>
+    </svg>
+  </div>
+  <div class="phase-panel">
+    <div class="phase-name" id="phaseName" aria-live="polite">Новолуние</div>
+    <div class="explainer" id="description">Обращённая к Земле сторона Луны не освещена Солнцем.</div>
+    <div class="controls"><label for="day">Прошло с начала лунного месяца</label><output class="days" id="days">0,0 дня</output><input type="range" class="range" id="day" min="0" max="29.53" step="0.1" value="0" aria-label="День лунного месяца"></div>
+    <div class="bottom"><button class="chip" data-day="0">Новолуние</button><button class="chip" data-day="7.38">Первая четверть</button><button class="chip" data-day="14.77">Полнолуние</button><button class="chip" data-day="22.15">Последняя четверть</button></div>
+  </div>
+</div>
+<canvas id="renderCanvas" width="320" height="320"></canvas>
+<script>
+(()=>{
+const period=29.53, slider=document.querySelector('#day'), days=document.querySelector('#days'), name=document.querySelector('#phaseName'), description=document.querySelector('#description'), moon=document.querySelector('#moon'), img=document.querySelector('#phaseImage'), canvas=document.querySelector('#renderCanvas');
+const ctx=canvas.getContext('2d');
+const states=[['Новолуние','Обращённая к Земле сторона Луны не освещена Солнцем.'],['Растущий серп','С каждым днём освещённая часть Луны становится больше.'],['Первая четверть','С Земли видна освещённая правая половина лунного диска.'],['Растущая Луна','Освещено больше половины лунного диска.'],['Полнолуние','С Земли видна почти вся освещённая сторона Луны.'],['Убывающая Луна','Освещённая часть лунного диска постепенно уменьшается.'],['Последняя четверть','С Земли видна освещённая левая половина лунного диска.'],['Убывающий серп','До следующего новолуния остаётся всё меньше времени.']];
+function phaseIndex(q){return Math.floor(q*8+0.5)%8}
+function renderDisk(theta){const w=320,r=151,mid=w/2;ctx.clearRect(0,0,w,w);const pixels=ctx.createImageData(w,w),a=pixels.data;const sx=Math.sin(theta),sz=-Math.cos(theta);for(let y=0;y<w;y++)for(let x=0;x<w;x++){const dx=(x+.5-mid)/r,dy=(y+.5-mid)/r,d2=dx*dx+dy*dy;const outer=Math.max(0,Math.min(1,(1-Math.sqrt(d2))*r));const z=Math.sqrt(Math.max(0,1-d2));const illumination=dx*sx+z*sz;const edge=Math.max(0,Math.min(1,illumination*115+0.5));const light=[255,241,202],dark=[35,35,35];const i=(y*w+x)*4;for(let c=0;c<3;c++)a[i+c]=dark[c]+(light[c]-dark[c])*edge;a[i+3]=Math.round(255*outer)}ctx.putImageData(pixels,0,0);img.setAttribute('href',canvas.toDataURL('image/png'))}
+function update(){const t=Number(slider.value),q=t/period,theta=q*Math.PI*2;days.textContent=t.toFixed(1).replace('.',',')+' '+(Math.abs(t-1)<.05?'день':'дня');const angle=Math.PI+theta;moon.setAttribute('transform',`translate(${400+47*Math.cos(angle)} ${113+47*Math.sin(angle)})`);const index=phaseIndex(q);name.textContent=states[index][0];description.textContent=states[index][1];renderDisk(theta)}
+slider.addEventListener('input',update);document.querySelector('#reset').addEventListener('click',()=>{slider.value=0;update()});document.querySelectorAll('[data-day]').forEach(b=>b.addEventListener('click',()=>{slider.value=b.dataset.day;update()}));update();
+})();
+</script>
+</body>
+</html>
